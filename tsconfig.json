@@ -3,15 +3,23 @@
         "outDir": "./dist",
         "module": "ESNext",
         "target": "ES2022",
-        "moduleResolution": "node",
+        "moduleResolution": "bundler",
         "sourceMap": true,
         "baseUrl": "./src",
         "resolveJsonModule": true,
         "esModuleInterop": true,
         "allowSyntheticDefaultImports": true,
-        "strict": false,
-        "types": ["node"]
+        "strict": true,
+        "noUncheckedIndexedAccess": true,
+        "exactOptionalPropertyTypes": true,
+        "noFallthroughCasesInSwitch": true,
+        "noPropertyAccessFromIndexSignature": true,
+        "forceConsistentCasingInFileNames": true,
+        "verbatimModuleSyntax": true,
+        "isolatedModules": true,
+        "skipLibCheck": true,
+        "types": ["bun"]
     },
-    "include": ["src/**/*.ts"],
+    "include": ["src/**/*.ts", "scripts/**/*.ts"],
     "exclude": ["node_modules", "dist"]
 }

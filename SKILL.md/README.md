@@ -55,6 +55,12 @@ The OpenClaw skill includes `metadata.openclaw` with:
 
 **Spec**: [developers.openai.com/codex/skills](https://developers.openai.com/codex/skills/)
 
+Install globally from this fork with the Skills CLI:
+
+```bash
+bunx --bun skills add nfwyst/pinets-cli --skill pinets --agent codex --global --yes --copy
+```
+
 Install as a **repo skill**:
 
 ```bash
@@ -75,14 +81,14 @@ Codex will automatically activate the skill when your task matches the descripti
 
 ## Prerequisites
 
-All skills require `pinets-cli` to be installed globally, or available via `npx`:
+All skills require Bun 1.4+ and `@nfwyst/pinets-cli` to be installed globally, or available via `bunx`:
 
 ```bash
 # Global install
-npm install -g pinets-cli
+bun add -g @nfwyst/pinets-cli
 
-# Or use npx (no install needed — downloads on first use)
-npx pinets-cli run indicator.pine --symbol BTCUSDT -q
+# Or use bunx (no install needed — downloads on first use)
+bunx --bun @nfwyst/pinets-cli run indicator.pine --symbol BTCUSDT -q
 ```
 
 ## What the skills teach the AI
@@ -94,7 +100,7 @@ Each skill file contains the same core knowledge:
 3. **Output filtering** — `--clean` to filter null/false values, `--plots` to select specific plots
 4. **Output structure** — how to parse the JSON response (`default` and `full` formats)
 5. **JSON data format** — the expected candle object schema for `--data`
-6. **Pine Script primer** — basic Pine Script v5 syntax so the AI can write indicators
+6. **Pine Script primer** — basic Pine Script v6 syntax so the AI can write indicators
 7. **Warmup recommendations** — how many extra candles each indicator type needs
 8. **Best practices** — always use `-q` when parsing, handle `NaN` values, etc.
 
@@ -103,6 +109,6 @@ Each skill file contains the same core knowledge:
 | Feature             | Claude Code                              | OpenClaw                                              | OpenAI Codex                             |
 | ------------------- | ---------------------------------------- | ----------------------------------------------------- | ---------------------------------------- |
 | Frontmatter         | `name`, `description`                    | `name`, `description`, `version`, `metadata.openclaw` | `name`, `description`                    |
-| Install location    | `~/.claude/skills/` or `.claude/skills/` | `~/.claude/skills/`                                   | `~/.agents/skills/` or `.agents/skills/` |
+| Install location    | `~/.claude/skills/` or `.claude/skills/` | `~/.openclaw/workspace/skills/`                       | `~/.agents/skills/` or `.agents/skills/` |
 | Invoke explicitly   | `/pinets`                                | `/pinets`                                             | `$pinets`                                |
 | Implicit invocation | Yes (via description matching)           | Yes                                                   | Yes (via description matching)           |

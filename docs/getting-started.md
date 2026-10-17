@@ -2,14 +2,14 @@
 
 ## Prerequisites
 
-- **Node.js 18+** (pinets-cli uses modern features like `fetch` that are built into Node 18+)
+- **Bun 1.4 or newer**
 
 ## Installation
 
 ### Global install (recommended)
 
 ```bash
-npm install -g pinets-cli
+bun add -g @nfwyst/pinets-cli
 ```
 
 This makes the `pinets` command available system-wide.
@@ -18,18 +18,17 @@ This makes the `pinets` command available system-wide.
 
 ```bash
 pinets --version
-# 0.1.0
 ```
 
-### npx (no install needed)
+### bunx (no install needed)
 
-You can also run without installing globally. `npx` downloads the package on first use and caches it:
+You can also run without installing globally. `bunx` downloads the package on first use and caches it:
 
 ```bash
-npx pinets-cli run my_indicator.pine --symbol BTCUSDT --timeframe 60
+bunx --bun @nfwyst/pinets-cli run my_indicator.pine --symbol BTCUSDT --timeframe 60
 ```
 
-When using `npx`, replace `pinets` with `npx pinets-cli` in all examples in this documentation.
+When using `bunx`, replace `pinets` with `bunx --bun @nfwyst/pinets-cli` in all examples in this documentation.
 
 ---
 

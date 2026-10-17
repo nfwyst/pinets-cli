@@ -1,7 +1,6 @@
 ---
 name: pinets
-description: Run Pine Script indicators from the command line using pinets-cli. Use when asked to execute, test, or analyze Pine Script indicators, calculate technical analysis values (RSI, SMA, EMA, MACD, etc.), or fetch market data for crypto trading pairs. This tool can run PineScript indicators from .pine files or stdin and output the resulting plots and variables data.
-version: 1.0.0
+description: Run Pine Script indicators from the command line using pinets-cli. Use only when the user requests CLI execution or testing, computed technical indicator values such as RSI, SMA, EMA, MACD, or Bollinger Bands, or crypto market data for a trading pair. Accepts Pine Script from a .pine file or stdin and returns structured plots and variables; use the pinescript skill for authoring or debugging code without execution.
 metadata:
   openclaw:
     requires:
@@ -9,21 +8,23 @@ metadata:
         - pinets
     primaryEnv: ""
     emoji: "\U0001F4C8"
-    homepage: https://github.com/QuantForgeOrg/pinets-cli
+    homepage: https://github.com/nfwyst/pinets-cli
 ---
 
 # pinets-cli — Run Pine Script Indicators from the Terminal
 
-`pinets` is a CLI tool that executes TradingView Pine Script indicators via the [PineTS](https://github.com/QuantForgeOrg/PineTS) runtime. It outputs structured JSON with calculated indicator values.
+`pinets` is a CLI tool that executes TradingView Pine Script indicators via the [PineTS](https://github.com/nfwyst/PineTS) runtime. It outputs structured JSON with calculated indicator values.
 
 ## Installation
 
+Bun 1.4 or newer is required.
+
 ```bash
 # Global install
-npm install -g pinets-cli
+bun add -g @nfwyst/pinets-cli
 
-# Or run directly with npx (no install needed)
-npx pinets-cli run indicator.pine --symbol BTCUSDT -q
+# Or run directly with bunx (no install needed)
+bunx --bun @nfwyst/pinets-cli run indicator.pine --symbol BTCUSDT -q
 ```
 
 Verify (if installed globally):
@@ -32,7 +33,7 @@ Verify (if installed globally):
 pinets --version
 ```
 
-When using `npx`, replace `pinets` with `npx pinets-cli` in all examples below.
+When using `bunx`, replace `pinets` with `bunx --bun @nfwyst/pinets-cli` in all examples below.
 
 ## Core command
 
@@ -49,8 +50,9 @@ The indicator can be a **file argument** or **piped from stdin**.
 | Flag                    | Description                                                                                  |
 | ----------------------- | -------------------------------------------------------------------------------------------- |
 | `-s, --symbol <ticker>` | Symbol from Binance (e.g., `BTCUSDT`, `ETHUSDT`, `SOLUSDT.P` for futures)                    |
-| `-t, --timeframe <tf>`  | Candle timeframe: `1`, `5`, `15`, `30`, `60`, `120`, `240`, `1D`, `1W`, `1M` (default: `60`) |
+| `-t, --timeframe <tf>`  | Candle timeframe: `1`, `3`, `5`, `15`, `30`, `45`, `60`, `120`, `180`, `240`, `D`, `W`, `M`, `3M`, `6M`, `12M` and aliases (default: `60`) |
 | `-d, --data <path>`     | JSON file with candle data (alternative to `--symbol`)                                       |
+| `--request-timeout <ms>` | Maximum duration of each market-data request (default: `30000`)                             |
 
 ### Output
 
@@ -94,7 +96,7 @@ pinets run ema200.pine -s BTCUSDT -t 1D -n 100 -w 200 -q
 ### Pipe Pine Script from stdin
 
 ```bash
-echo '//@version=5
+echo '//@version=6
 indicator("RSI")
 plot(ta.rsi(close, 14), "RSI")' | pinets run -s BTCUSDT -t 60 -n 20 -q
 ```
@@ -187,10 +189,10 @@ Required fields: `open`, `high`, `low`, `close`, `volume`. Recommended: `openTim
 
 ## Pine Script quick reference
 
-pinets-cli accepts standard TradingView Pine Script v5+:
+pinets-cli executes Pine Script v6 through PineTS. PineTS also accepts v5 scripts for compatibility; write new scripts with `//@version=6`:
 
 ```pinescript
-//@version=5
+//@version=6
 indicator("My Indicator", overlay=false)
 
 // Technical analysis functions
@@ -210,7 +212,8 @@ plot(rsi, "RSI", color=color.purple)
 - **Warmup matters**: Indicators with long lookback periods (SMA 200, EMA 200) produce `NaN` for the first N bars. Use `--warmup` to pre-feed the indicator.
 - **`time` values** are Unix timestamps in milliseconds.
 - **Errors** go to stderr with exit code 1.
-- The tool bundles PineTS internally — no additional npm packages are needed at runtime.
+- A successful `pinets` run is PineTS execution, not an official TradingView compilation result, and does not prove full static-semantic parity.
+- The tool bundles PineTS internally; no additional packages are needed at runtime.
 
 ## Warmup recommendations
 

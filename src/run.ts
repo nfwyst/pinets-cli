@@ -1,171 +1,289 @@
 import fs from 'fs';
 import path from 'path';
-import { PineTS, Provider } from 'pinets';
-import { readStdin } from './stdin';
+import { PineTS, Provider } from '@nfwyst/pinets';
+import type { IProvider } from '@nfwyst/pinets';
+import {
+    CliInputError,
+    parseCandleData,
+    parseNonNegativeInteger,
+    parseOutputFormat,
+    parsePositiveInteger,
+    parseTimeframe,
+} from './cli-input';
+import type { CandleData } from './cli-input';
 import { formatOutput, writeOutput } from './output';
+import { readStdin } from './stdin';
 
-// ── Types ─────────────────────────────────────────────────────
+export type RunOptions = {
+    readonly symbol?: string;
+    readonly timeframe: string;
+    readonly data?: string;
+    readonly output?: string;
+    readonly format: string;
+    readonly pretty?: boolean;
+    readonly clean?: boolean;
+    readonly plots?: string;
+    readonly candles: string;
+    readonly warmup: string;
+    readonly requestTimeout: string;
+    readonly debug?: boolean;
+    readonly quiet?: boolean;
+};
 
-export interface RunOptions {
-    symbol?: string;
-    timeframe: string;
-    data?: string;
-    output?: string;
-    format: string;
-    pretty?: boolean;
-    clean?: boolean;
-    plots?: string;
-    candles: string;
-    warmup: string;
-    debug?: boolean;
-    quiet?: boolean;
+class RuntimeExecutionError extends Error {
+    readonly name = 'RuntimeExecutionError';
 }
 
-// ── Helpers ───────────────────────────────────────────────────
-
-function log(quiet: boolean, ...args: any[]) {
+function log(quiet: boolean, ...args: readonly unknown[]): void {
     if (!quiet) console.error(...args);
 }
 
-function fail(message: string, hint?: string): never {
-    console.error(`Error: ${message}`);
-    if (hint) console.error(hint);
-    process.exit(1);
+export async function runCommand(
+    file: string | undefined,
+    options: RunOptions,
+): Promise<void> {
+    try {
+        await executeRun(file, options);
+    } catch (error) {
+        if (error instanceof CliInputError) {
+            console.error(`Error: ${error.message}`);
+            if (error.hint) console.error(error.hint);
+        } else {
+            console.error(`Execution failed: ${errorMessage(error)}`);
+            if (options.debug && error instanceof Error && error.stack) {
+                console.error(error.stack);
+            }
+        }
+        process.exitCode = 1;
+    }
 }
 
-// ── Run command ───────────────────────────────────────────────
-
-export async function runCommand(file: string | undefined, options: RunOptions) {
-    const candles = parseInt(options.candles, 10);
-    const warmup = parseInt(options.warmup, 10);
+async function executeRun(
+    file: string | undefined,
+    options: RunOptions,
+): Promise<void> {
+    const candles = parsePositiveInteger(options.candles, '--candles');
+    const warmup = parseNonNegativeInteger(options.warmup, '--warmup');
+    const requestTimeout = parsePositiveInteger(
+        options.requestTimeout,
+        '--request-timeout',
+    );
     const totalCandles = candles + warmup;
-    const quiet = !!options.quiet;
-
-    // Validate numeric options
-    if (isNaN(candles) || candles <= 0) {
-        fail('--candles must be a positive integer.');
-    }
-    if (isNaN(warmup) || warmup < 0) {
-        fail('--warmup must be a non-negative integer.');
+    if (!Number.isSafeInteger(totalCandles)) {
+        throw new CliInputError('--candles plus --warmup exceeds the safe integer range.');
     }
 
-    // ── 1. Read indicator source ──────────────────────────────
+    const format = parseOutputFormat(options.format);
+    const quiet = options.quiet === true;
+    const indicatorCode = await readIndicatorCode(file, quiet);
+    const source = readDataSource(options, totalCandles, quiet);
 
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = Object.assign(
+        async (
+            input: Parameters<typeof globalThis.fetch>[0],
+            init?: Parameters<typeof globalThis.fetch>[1],
+        ): Promise<Response> => {
+            const timeoutSignal = AbortSignal.timeout(requestTimeout);
+            const providerSignal = init?.signal;
+            if (!providerSignal) {
+                return originalFetch(input, { ...init, signal: timeoutSignal });
+            }
+
+            const controller = new AbortController();
+            let requestTimedOut = false;
+            const abortFromProvider = (): void => {
+                if (!controller.signal.aborted) {
+                    controller.abort(providerSignal.reason);
+                }
+            };
+            const abortFromTimeout = (): void => {
+                if (!controller.signal.aborted) {
+                    requestTimedOut = true;
+                    controller.abort(timeoutSignal.reason);
+                }
+            };
+            providerSignal.addEventListener('abort', abortFromProvider, { once: true });
+            timeoutSignal.addEventListener('abort', abortFromTimeout, { once: true });
+            if (providerSignal.aborted) abortFromProvider();
+            if (timeoutSignal.aborted) abortFromTimeout();
+
+            try {
+                const response = await originalFetch(input, {
+                    ...init,
+                    signal: controller.signal,
+                });
+                // Keep cancellation active until the provider can consume the full body.
+                if (response.body !== null) await response.clone().arrayBuffer();
+                return response;
+            } catch (error) {
+                if (requestTimedOut) {
+                    throw new RuntimeExecutionError(
+                        `Market data request timed out after ${requestTimeout}ms.`,
+                        { cause: error },
+                    );
+                }
+                throw error;
+            } finally {
+                providerSignal.removeEventListener('abort', abortFromProvider);
+                timeoutSignal.removeEventListener('abort', abortFromTimeout);
+            }
+        },
+        { preconnect: originalFetch.preconnect },
+    );
+    const [pineTS, context] = await (async () => {
+        try {
+            const runtime = new PineTS(
+                source.data,
+                source.tickerId,
+                source.timeframe,
+                source.limit,
+            );
+            if (options.debug) {
+                runtime.setDebugSettings({ ln: false, debug: true });
+            }
+
+            log(quiet, 'Executing...');
+            return [runtime, await runtime.run(indicatorCode)] as const;
+        } finally {
+            globalThis.fetch = originalFetch;
+        }
+    })();
+    const marketData: unknown = context.marketData;
+    if (!Array.isArray(marketData) || marketData.length === 0) {
+        throw new RuntimeExecutionError('The data provider returned no market data.');
+    }
+    if (source.limit !== undefined) {
+        log(
+            quiet,
+            `Market data: ${source.limit} candles requested | ${marketData.length} returned`,
+        );
+    }
+
+    if (options.debug) {
+        console.error(String(pineTS.transpiledCode));
+    }
+    const compileWarnings = (context as unknown as { compileWarnings?: unknown }).compileWarnings;
+    if (Array.isArray(compileWarnings)) {
+        for (const warning of compileWarnings) {
+            const w = warning as { code?: string; message?: string; line?: number; column?: number };
+            console.error(`Warning ${w.code ?? ''} at line ${w.line ?? '?'}:${w.column ?? '?'}: ${w.message ?? ''}`);
+        }
+    }
+    const runtimeWarnings = context.warnings;
+    if (Array.isArray(runtimeWarnings)) {
+        for (const warning of runtimeWarnings) {
+            console.error(`Warning (bar ${warning.bar}): ${warning.message}${warning.method ? ` [${warning.method}]` : ''}`);
+        }
+    }
+    log(quiet, 'Done.');
+
+    const output = formatOutput(context, {
+        format,
+        candles,
+        clean: options.clean === true,
+        plotFilter: options.plots,
+    });
+    const pretty =
+        options.pretty === true ||
+        (options.output === undefined && process.stdout.isTTY === true);
+
+    writeOutput(output, {
+        outputPath: options.output,
+        pretty,
+        quiet,
+    });
+}
+
+async function readIndicatorCode(
+    file: string | undefined,
+    quiet: boolean,
+): Promise<string> {
     let indicatorCode: string;
-
     if (file) {
         const filePath = path.resolve(file);
         if (!fs.existsSync(filePath)) {
-            fail(`File not found: ${filePath}`);
+            throw new CliInputError(`File not found: ${filePath}`);
         }
         indicatorCode = fs.readFileSync(filePath, 'utf-8');
         log(quiet, `Indicator: ${path.basename(filePath)}`);
     } else if (!process.stdin.isTTY) {
         log(quiet, 'Reading indicator from stdin...');
         indicatorCode = await readStdin();
-
-        if (!indicatorCode.trim()) {
-            fail('Empty input received from stdin.');
-        }
         log(quiet, `Indicator: <stdin> (${indicatorCode.length} chars)`);
     } else {
-        fail(
+        throw new CliInputError(
             'No indicator provided. Pass a file argument or pipe via stdin.',
             '\n  Examples:\n' +
-            '    pinets run my_indicator.pine --symbol BTCUSDT\n' +
-            '    cat my_indicator.pine | pinets run --symbol BTCUSDT',
+                '    pinets run my_indicator.pine --symbol BTCUSDT\n' +
+                '    cat my_indicator.pine | pinets run --symbol BTCUSDT',
         );
     }
 
-    // ── 2. Setup data source ──────────────────────────────────
+    if (!indicatorCode.trim()) {
+        throw new CliInputError('Indicator input must not be empty.');
+    }
+    return indicatorCode;
+}
 
-    let dataSource: any;
-    let tickerId: string | undefined;
-    let timeframe: string | undefined;
-    let limit: number | undefined;
+type DataSource = {
+    readonly data: IProvider | CandleData[];
+    readonly tickerId: string | undefined;
+    readonly timeframe: string | undefined;
+    readonly limit: number | undefined;
+};
 
+function readDataSource(
+    options: RunOptions,
+    totalCandles: number,
+    quiet: boolean,
+): DataSource {
     if (options.data) {
-        // ── JSON file data source ─────────────────────────────
         const dataPath = path.resolve(options.data);
         if (!fs.existsSync(dataPath)) {
-            fail(`Data file not found: ${dataPath}`);
+            throw new CliInputError(`Data file not found: ${dataPath}`);
         }
 
-        let jsonData: any[];
-        try {
-            const raw = fs.readFileSync(dataPath, 'utf-8');
-            jsonData = JSON.parse(raw);
-        } catch (e: any) {
-            fail(`Failed to parse JSON data file: ${e.message}`);
+        const candles = parseCandleData(fs.readFileSync(dataPath, 'utf-8'));
+        // A raw OHLCV array has no provider to derive a timeframe from. Pass
+        // the CLI's normalized timeframe through so request.security() /
+        // time("") resolve the same-period value accurately; PineTS leaves
+        // context.timeframe undefined for raw arrays otherwise.
+        const dataTimeframe = parseTimeframe(options.timeframe);
+        log(quiet, `Data source: JSON file (${candles.length} candles) | ${dataTimeframe}`);
+        return {
+            data: candles,
+            tickerId: options.symbol?.toUpperCase(),
+            timeframe: dataTimeframe,
+            limit: undefined,
+        };
+    }
+
+    if (options.symbol) {
+        const provider = Provider['Binance'];
+        if (!provider) {
+            throw new RuntimeExecutionError('The Binance provider is unavailable.');
         }
-
-        if (!Array.isArray(jsonData!) || jsonData!.length === 0) {
-            fail(
-                'JSON data must be a non-empty array of candle objects.',
-                'Expected: [{ openTime, open, high, low, close, volume, closeTime }, ...]',
-            );
-        }
-
-        // Validate first candle has required fields
-        const required = ['open', 'high', 'low', 'close', 'volume'];
-        const missing = required.filter((f) => jsonData![0][f] === undefined);
-        if (missing.length > 0) {
-            fail(`JSON candle data is missing required fields: ${missing.join(', ')}`);
-        }
-
-        dataSource = jsonData!;
-        log(quiet, `Data source: JSON file (${jsonData!.length} candles)`);
-
-    } else if (options.symbol) {
-        // ── Live Binance provider ─────────────────────────────
-        dataSource = Provider.Binance;
-        tickerId = options.symbol.toUpperCase();
-        timeframe = options.timeframe;
-        limit = totalCandles;
-        log(quiet, `Data source: Binance | ${tickerId} | ${timeframe} | ${totalCandles} candles`);
-
-    } else {
-        fail(
-            'No data source provided.',
-            'Use --symbol <ticker> for live data or --data <file.json> for a JSON file.',
+        const tickerId = options.symbol.toUpperCase();
+        const timeframe = parseTimeframe(options.timeframe);
+        log(
+            quiet,
+            `Data source: Binance | ${tickerId} | ${timeframe}`,
         );
+        return {
+            data: provider,
+            tickerId,
+            timeframe,
+            limit: totalCandles,
+        };
     }
 
-    // ── 3. Create PineTS instance and execute ─────────────────
+    throw new CliInputError(
+        'No data source provided.',
+        'Use --symbol <ticker> for live data or --data <file.json> for a JSON file.',
+    );
+}
 
-    try {
-        const pineTS = new PineTS(dataSource, tickerId, timeframe, limit);
-
-        if (options.debug) {
-            pineTS.setDebugSettings({ ln: false, debug: true });
-        }
-
-        log(quiet, 'Executing...');
-        const context = await pineTS.run(indicatorCode);
-        log(quiet, 'Done.');
-
-        // ── 4. Format and write output ────────────────────────
-        const output = formatOutput(context, options.format, candles, options.clean, options.plots);
-
-        // Pretty-print: explicit flag > auto-detect
-        //   --pretty     → always pretty
-        //   --output     → compact (file)
-        //   stdout + TTY → pretty
-        //   stdout + pipe → compact
-        const pretty =
-            options.pretty !== undefined
-                ? true
-                : options.output
-                    ? false
-                    : !!process.stdout.isTTY;
-
-        writeOutput(output, options.output, pretty, quiet);
-
-    } catch (err: any) {
-        console.error(`Execution failed: ${err.message || err}`);
-        if (options.debug && err.stack) {
-            console.error(err.stack);
-        }
-        process.exit(1);
-    }
+function errorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
 }

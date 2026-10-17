@@ -59,12 +59,19 @@ Timeframe for candle data. Only used with `--symbol`.
 | `5` | 5 minutes |
 | `15` | 15 minutes |
 | `30` | 30 minutes |
+| `45` | 45 minutes |
 | `60` | 1 hour |
 | `120` | 2 hours |
+| `180` | 3 hours |
 | `240` | 4 hours |
 | `1D` or `D` | 1 day |
 | `1W` or `W` | 1 week |
 | `1M` or `M` | 1 month |
+| `3M` | 3 months |
+| `6M` | 6 months |
+| `12M` | 12 months |
+
+Multi-month values are case-sensitive: use uppercase `M`; lowercase forms such as `12m` are rejected.
 
 ```bash
 pinets run rsi.pine -s BTCUSDT -t 1D    # Daily candles
@@ -80,6 +87,14 @@ pinets run rsi.pine --data ./my_candles.json
 ```
 
 See [Data Sources](data-sources.md) for the expected JSON format.
+
+#### `--request-timeout <milliseconds>`
+
+Maximum duration of each market-data HTTP request before it is cancelled.
+
+**Default:** `30000` (30 seconds)
+
+This option applies to live providers. It has no effect when using `--data`.
 
 ---
 
@@ -147,6 +162,9 @@ pinets run signals.pine -s BTCUSDT --clean
 
 Select specific plots to include in the output. Takes a comma-separated list of plot names (must match the titles from your Pine Script).
 
+Unknown or empty plot names are rejected with exit code 1. The error lists the
+available plot titles.
+
 ```bash
 # Get only the Fast and Slow moving averages
 pinets run ma_cross.pine -s BTCUSDT --plots "Fast MA,Slow MA"
@@ -200,6 +218,8 @@ pinets run ema200.pine -s BTCUSDT -n 500 -w 200
 #### `--debug`
 
 Show the transpiled JavaScript code that PineTS generates from the Pine Script input. Useful for debugging indicator issues.
+
+This is PineTS execution diagnostics, not TradingView's official compiler. A successful run does not prove that TradingView will compile the script or that PineTS implements every static semantic check.
 
 ```bash
 pinets run my_indicator.pine -s BTCUSDT --debug

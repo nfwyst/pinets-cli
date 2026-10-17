@@ -1,16 +1,17 @@
 # Scratchpad (local dev/test files)
 .scratchpad/
 
+# Local agent and release scratch data
+.omo/
+.tmp-nfwyst-push-*/
+
 # Logs
 logs
 *.log
-npm-debug.log*
+bun-error.log*
 yarn-debug.log*
 yarn-error.log*
 lerna-debug.log*
-
-# Diagnostic reports (https://nodejs.org/api/report.html)
-report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
 # Runtime data
 pids
@@ -34,15 +35,12 @@ coverage
 # Bower dependency directory (https://bower.io/)
 bower_components
 
-# node-waf configuration
-.lock-wscript
-
-# Compiled binary addons (https://nodejs.org/api/addons.html)
-build/Release
-
 # Dependency directories
 node_modules/
 jspm_packages/
+
+# Bun lockfile is committed even when a global ignore excludes it.
+!bun.lock
 
 # Snowpack dependency directory (https://snowpack.dev/)
 web_modules/
@@ -50,19 +48,13 @@ web_modules/
 # TypeScript cache
 *.tsbuildinfo
 
-# Optional npm cache directory
-.npm
-
 # Optional eslint cache
 .eslintcache
 
 # Optional stylelint cache
 .stylelintcache
 
-# Optional REPL history
-.node_repl_history
-
-# Output of 'npm pack'
+# Package tarballs
 *.tgz
 
 # Yarn Integrity file

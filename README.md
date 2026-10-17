@@ -5,9 +5,10 @@
 </p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/pinets-cli"><img src="https://img.shields.io/npm/v/pinets-cli.svg?style=flat-square" alt="npm version"></a>
+  <a href="https://www.npmjs.com/package/@nfwyst/pinets-cli"><img src="https://img.shields.io/npm/v/%40nfwyst%2Fpinets-cli.svg?style=flat-square" alt="npm version"></a>
+  <a href="https://bun.sh"><img src="https://img.shields.io/badge/runtime-Bun%201.4%2B-f9f1e1.svg?style=flat-square" alt="Bun runtime"></a>
   <a href="https://opensource.org/licenses/AGPL-3.0"><img src="https://img.shields.io/badge/License-AGPL--3.0-blue.svg?style=flat-square" alt="License"></a>
-  <a href="https://github.com/LuxAlgo/PineTS"><img src="https://img.shields.io/badge/powered%20by-PineTS-blue?style=flat-square" alt="Powered by PineTS"></a>
+  <a href="https://github.com/nfwyst/PineTS"><img src="https://img.shields.io/badge/powered%20by-PineTS-blue?style=flat-square" alt="Powered by PineTS"></a>
 </p>
 
 <p align="center">
@@ -23,7 +24,7 @@
 
 ## What is pinets-cli?
 
-**pinets-cli** is a command-line interface for [PineTS](https://github.com/LuxAlgo/PineTS), the open-source Pine Script® transpiler and runtime. It lets you execute TradingView® Pine Script® indicators directly from your terminal, with live market data or custom JSON datasets.
+**pinets-cli** is a command-line interface for [PineTS](https://github.com/nfwyst/PineTS), the open-source Pine Script® transpiler and runtime. It lets you execute TradingView® Pine Script® indicators directly from your terminal, with live market data or custom JSON datasets.
 
 ```bash
 pinets run rsi.pine --symbol BTCUSDT --timeframe 60
@@ -33,20 +34,25 @@ No code to write. No project to set up. Just point it at a `.pine` file and go.
 
 > _**Disclaimer**: pinets-cli and PineTS are independently developed open-source projects. LuxAlgo Global, LLC and the PineTS project are NOT affiliated with, sponsored by, endorsed by, or in any way officially associated with TradingView, Inc. "Pine Script®" and "TradingView®" are registered trademarks of TradingView, Inc._
 
+pinets-cli executes supported Pine syntax through PineTS; it does not invoke TradingView's official compiler. A successful local run is not an official compilation result and does not demonstrate full static-semantic parity with TradingView.
+
 ---
 
 ## Quick Start
 
 ### Install
 
+Bun 1.4 or newer is required. Bun installs, downloads, and executes the
+published CLI.
+
 ```bash
-npm install -g pinets-cli
+bun add -g @nfwyst/pinets-cli
 ```
 
 Or run directly without installing:
 
 ```bash
-npx pinets-cli run sma_cross.pine --symbol BTCUSDT --timeframe 60
+bunx --bun @nfwyst/pinets-cli run sma_cross.pine --symbol BTCUSDT --timeframe 60
 ```
 
 ### Run your first indicator
@@ -92,6 +98,9 @@ pinets run my_indicator.pine --symbol BTCUSDT
 cat my_indicator.pine | pinets run --symbol BTCUSDT
 ```
 
+Piped input uses a 10-second inactivity timeout. Slow producers remain valid as
+long as they continue writing data.
+
 ### Data source
 
 Choose between **live market data** or a **local JSON file**:
@@ -113,8 +122,9 @@ pinets run rsi.pine --data ./my_candles.json
 | Option              | Short | Description                                              | Default |
 | ------------------- | ----- | -------------------------------------------------------- | ------- |
 | `--symbol <ticker>` | `-s`  | Symbol to query (e.g., `BTCUSDT`, `ETHUSDT.P`)           | &mdash; |
-| `--timeframe <tf>`  | `-t`  | Timeframe: `1`, `5`, `15`, `60`, `240`, `1D`, `1W`, `1M` | `60`    |
+| `--timeframe <tf>`  | `-t`  | Timeframe: `1`, `3`, `5`, `15`, `30`, `45`, `60`, `120`, `180`, `240`, `D`, `W`, `M`, `3M`, `6M`, `12M` and aliases | `60`    |
 | `--data <path>`     | `-d`  | Path to a JSON data file (alternative to `--symbol`)     | &mdash; |
+| `--request-timeout <ms>` | &mdash; | Maximum duration of each market-data request | `30000` |
 
 ### Output
 
@@ -234,7 +244,13 @@ pinets run signals.pine -s BTCUSDT --plots "Buy,Sell" --clean -q | jq '.plots'
 
 pinets-cli is designed to be driven programmatically. Indicators go in on stdin, structured JSON comes out on stdout, and there is no interactive prompt or project scaffolding to negotiate — which makes it usable as a tool call from an agent, a script, or a CI job without a wrapper.
 
-A `SKILL.md` is included in the repository root for agent frameworks that consume skill definitions.
+Install the bundled `pinets` skill directly from this fork with the Skills CLI:
+
+```bash
+bunx --bun skills add nfwyst/pinets-cli --skill pinets --agent codex --global --yes --copy
+```
+
+Platform-specific skill definitions also live under [`SKILL.md/`](./SKILL.md/README.md).
 
 Three flags matter when an agent is the caller:
 
@@ -318,18 +334,22 @@ When using `--data`, provide a JSON file with an array of candle objects:
 
 **Recommended fields**: `openTime`, `closeTime` (millisecond timestamps)
 
+Every candle is validated. Required values and optional timestamps must be finite
+numbers; timestamped candles must be in chronological order.
+
 ---
 
 ## How It Works
 
-pinets-cli is a self-contained binary that bundles the [PineTS](https://github.com/LuxAlgo/PineTS) library. When you run an indicator:
+pinets-cli is a self-contained binary that bundles the [PineTS](https://github.com/nfwyst/PineTS) library. When you run an indicator:
 
 1. The Pine Script® file is read and passed to the PineTS transpiler
 2. Market data is fetched from Binance (or loaded from your JSON file)
 3. The indicator is executed bar-by-bar with full time-series semantics
 4. Plot data is collected and output as structured JSON
 
-There are no runtime dependencies. The single bundled file includes everything needed.
+There are no additional runtime package installs. The single bundled file
+includes PineTS and runs on Bun 1.4 or newer.
 
 ---
 
@@ -342,18 +362,23 @@ There are no runtime dependencies. The single bundled file includes everything n
 | `5`         | 5 minutes   |
 | `15`        | 15 minutes  |
 | `30`        | 30 minutes  |
+| `45`        | 45 minutes  |
 | `60`        | 1 hour      |
 | `120`       | 2 hours     |
+| `180`       | 3 hours     |
 | `240`       | 4 hours     |
 | `1D` or `D` | 1 day       |
 | `1W` or `W` | 1 week      |
 | `1M` or `M` | 1 month     |
+| `3M`        | 3 months    |
+| `6M`        | 6 months    |
+| `12M`       | 12 months   |
 
 ---
 
 ## Related Projects
 
-- **[PineTS](https://github.com/LuxAlgo/PineTS)** : The underlying transpiler and runtime engine
+- **[PineTS](https://github.com/nfwyst/PineTS)** : The underlying transpiler and runtime engine
 
 ---
 
@@ -365,10 +390,12 @@ Contributions are welcome! Please feel free to open issues or submit pull reques
 
 ## License
 
-AGPL-3.0-or-later - See [LICENSE](LICENSE) for details.
+Original pinets-cli code is AGPL-3.0-or-later. The bundled PineTS runtime is
+AGPL-3.0-only. See [LICENSE](LICENSE) and
+[THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES) for details.
 
 ---
 
 <p align="center">
-  <sub>Built with <a href="https://github.com/LuxAlgo/PineTS">PineTS</a> by <a href="https://luxalgo.com">LuxAlgo</a></sub>
+  <sub>Built with <a href="https://github.com/nfwyst/PineTS">the nfwyst-maintained PineTS fork</a></sub>
 </p>

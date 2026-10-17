@@ -14,7 +14,7 @@ Complete documentation for the pinets-cli command-line tool.
 
 ## Overview
 
-**pinets-cli** is the command-line interface for [PineTS](https://github.com/QuantForgeOrg/PineTS). It lets you run Pine Script indicators from the terminal without writing any JavaScript code.
+**pinets-cli** is the command-line interface for [PineTS](https://github.com/nfwyst/PineTS). It lets you run Pine Script indicators from the terminal without writing any JavaScript code.
 
 ### What can you do with it?
 
@@ -40,4 +40,4 @@ Complete documentation for the pinets-cli command-line tool.
                         └───────────┘
 ```
 
-The CLI is distributed as a single self-contained binary with the PineTS runtime bundled in. No additional `npm install` is required after the initial global install.
+The CLI is distributed as a single self-contained Bun bundle with the PineTS runtime included. No additional package install is required after the initial global install; Bun 1.4 or newer is required to run it.

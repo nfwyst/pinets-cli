@@ -1,7 +1,7 @@
 {
-  "name": "pinets-cli",
-  "version": "0.1.15",
-  "description": "A CLI wrapper for PineTS that lets you run Pine Script indicators directly from the command line.",
+  "name": "@nfwyst/pinets-cli",
+  "version": "0.1.15-nfwyst.9",
+  "description": "The nfwyst-maintained CLI for running Pine Script indicators with PineTS.",
   "keywords": [
     "Pine",
     "Script",
@@ -13,44 +13,51 @@
     "Backtesting",
     "CLI"
   ],
-  "homepage": "https://www.luxalgo.com/pinets/",
+  "homepage": "https://github.com/nfwyst/pinets-cli#readme",
   "bugs": {
-    "url": "https://github.com/LuxAlgo/pinets-cli/issues"
+    "url": "https://github.com/nfwyst/pinets-cli/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/LuxAlgo/pinets-cli.git"
+    "url": "git+https://github.com/nfwyst/pinets-cli.git"
   },
-  "license": "AGPL-3.0-or-later",
+  "license": "AGPL-3.0-or-later AND AGPL-3.0-only",
   "author": "Alaa-eddine KADDOURI",
+  "engines": {
+    "bun": ">=1.4.0"
+  },
+  "packageManager": "bun@1.4.4",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
   "type": "module",
   "bin": {
-    "pinets": "./dist/pinets-cli.min.cjs",
-    "pinets-cli": "./dist/pinets-cli.min.cjs"
+    "pinets": "dist/pinets-cli.min.cjs",
+    "pinets-cli": "dist/pinets-cli.cjs"
   },
   "files": [
     "dist/pinets-cli.min.cjs",
+    "dist/pinets-cli.min.cjs.map",
+    "dist/pinets-cli.cjs",
+    "SKILL.md",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "THIRD_PARTY_NOTICES"
   ],
   "scripts": {
-    "build": "cross-env BUILD=prod rollup -c",
-    "build:dev": "cross-env BUILD=dev rollup -c",
-    "build:prod": "cross-env BUILD=prod rollup -c",
-    "prepublishOnly": "npm run build:prod",
-    "clean": "rimraf dist"
+    "build": "bun run scripts/build.ts prod",
+    "build:dev": "bun run scripts/build.ts dev",
+    "build:prod": "bun run scripts/build.ts prod",
+    "check": "bunx --bun tsc --noEmit",
+    "test": "bun run build:prod && bun test --max-concurrency 1 test/*.test.mjs",
+    "prepublishOnly": "bun run check && bun run test",
+    "clean": "bun run scripts/clean.ts"
   },
   "devDependencies": {
-    "@rollup/plugin-commonjs": "^28.0.0",
-    "@rollup/plugin-json": "^6.1.0",
-    "@rollup/plugin-node-resolve": "^16.0.0",
+    "@nfwyst/pinets": "0.11.1-nfwyst.8",
+    "@types/bun": "^1.4.3",
     "commander": "^14.0.3",
-    "cross-env": "^10.1.0",
-    "esbuild": "^0.25.0",
-    "pinets": "^0.9.17",
-    "rimraf": "^6.0.0",
-    "rollup": "^4.30.0",
-    "rollup-plugin-esbuild": "^6.2.0",
     "typescript": "^5.7.0"
   }
 }
